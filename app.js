@@ -1,9 +1,14 @@
+if (typeof requireAuth === 'function') {
+  requireAuth();
+}
+
 const contaForm = document.getElementById('contaForm');
 const contasBody = document.getElementById('contasBody');
 const totalValue = document.getElementById('totalValue');
 const totalItens = document.getElementById('totalItens');
 const feedback = document.getElementById('feedback');
 const clearAllButton = document.getElementById('clearAll');
+const logoutButton = document.getElementById('logoutButton');
 
 const STORAGE_KEY = 'contas_pagas_itens';
 
@@ -129,7 +134,7 @@ function parseContaFromForm() {
   return { conta };
 }
 
-contaForm.addEventListener('submit', (event) => {
+contaForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
   const { conta, error } = parseContaFromForm();
@@ -144,8 +149,29 @@ contaForm.addEventListener('submit', (event) => {
   renderContas();
   updateTotal();
   contaForm.reset();
+
+  if (typeof saveContaToSheets === 'function') {
+    const sheetsResult = await saveContaToSheets(conta);
+
+    if (!sheetsResult.ok && !sheetsResult.skipped) {
+      showFeedback('Conta cadastrada localmente, mas falhou ao enviar para Google Sheets.');
+      return;
+    }
+
+    if (sheetsResult.skipped) {
+      showFeedback('Conta cadastrada localmente. Configure a URL do Apps Script para salvar no Google Sheets.');
+      return;
+    }
+  }
+
   showFeedback('Conta cadastrada com sucesso.');
 });
+
+if (logoutButton && typeof logout === 'function') {
+  logoutButton.addEventListener('click', () => {
+    logout();
+  });
+}
 
 clearAllButton.addEventListener('click', () => {
   if (contas.length === 0) {
