@@ -1,9 +1,7 @@
-const AUTH_STORAGE_KEY = 'contas_pagas_auth';
-const AUTH_USERNAME = 'lala';
-const AUTH_PASSWORD = '11082025@laLa#';
+const AUTH_STORAGE_KEY = 'contas_pagas_auth_user';
 
 function isAuthenticated() {
-  return localStorage.getItem(AUTH_STORAGE_KEY) === 'true';
+  return Boolean(localStorage.getItem(AUTH_STORAGE_KEY));
 }
 
 function requireAuth() {
@@ -12,12 +10,20 @@ function requireAuth() {
   }
 }
 
-function login(username, password) {
-  const ok = username === AUTH_USERNAME && password === AUTH_PASSWORD;
-  if (ok) {
-    localStorage.setItem(AUTH_STORAGE_KEY, 'true');
+async function login(username, password) {
+  const response = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: username, senha: password }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload.ok) {
+    return { ok: false, message: payload.message || 'Usuário ou senha inválidos.' };
   }
-  return ok;
+
+  localStorage.setItem(AUTH_STORAGE_KEY, payload.usuario || username);
+  return { ok: true };
 }
 
 function logout() {

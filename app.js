@@ -10,35 +10,7 @@ const feedback = document.getElementById('feedback');
 const clearAllButton = document.getElementById('clearAll');
 const logoutButton = document.getElementById('logoutButton');
 
-const STORAGE_KEY = 'contas_pagas_itens';
-
-const contas = loadContas();
-
-function loadContas() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed.filter(
-      (conta) =>
-        typeof conta.DESCRICAO_DA_CONTA === 'string' &&
-        typeof conta.DT_PAGAMENTO === 'string' &&
-        typeof conta.OBSERVACAO === 'string' &&
-        typeof conta.VALOR === 'number' &&
-        !Number.isNaN(conta.VALOR) &&
-        conta.VALOR >= 0
-    );
-  } catch {
-    return [];
-  }
-}
-
-function saveContas() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(contas));
-}
+let contas = [];
 
 function formatCurrency(value) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -73,12 +45,12 @@ function renderContas() {
     return;
   }
 
-  contas.forEach((conta, index) => {
+  contas.forEach((conta) => {
     const tr = document.createElement('tr');
-    tr.appendChild(createCell(conta.DESCRICAO_DA_CONTA));
-    tr.appendChild(createCell(formatCurrency(conta.VALOR)));
-    tr.appendChild(createCell(formatDate(conta.DT_PAGAMENTO)));
-    tr.appendChild(createCell(conta.OBSERVACAO || '-'));
+    tr.appendChild(createCell(conta.descricao_da_conta));
+    tr.appendChild(createCell(formatCurrency(conta.valor)));
+    tr.appendChild(createCell(formatDate(conta.dt_pagamento)));
+    tr.appendChild(createCell(conta.observacao || '-'));
 
     const actionsCell = document.createElement('td');
     actionsCell.className = 'actions-cell';
@@ -87,11 +59,13 @@ function renderContas() {
     deleteButton.type = 'button';
     deleteButton.className = 'delete';
     deleteButton.textContent = 'Excluir';
-    deleteButton.addEventListener('click', () => {
-      contas.splice(index, 1);
-      saveContas();
-      renderContas();
-      updateTotal();
+    deleteButton.addEventListener('click', async () => {
+      const response = await fetch(`/api/contas/${conta.id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        showFeedback('Falha ao excluir conta no banco de dados.');
+        return;
+      }
+      await loadContas();
       showFeedback('Conta removida com sucesso.');
     });
 
@@ -102,7 +76,7 @@ function renderContas() {
 }
 
 function updateTotal() {
-  const total = contas.reduce((acc, conta) => acc + conta.VALOR, 0);
+  const total = contas.reduce((acc, conta) => acc + Number(conta.valor || 0), 0);
   const quantidade = contas.length;
   const plural = quantidade === 1 ? 'conta cadastrada' : 'contas cadastradas';
 
@@ -134,6 +108,22 @@ function parseContaFromForm() {
   return { conta };
 }
 
+async function loadContas() {
+  const response = await fetch('/api/contas');
+  if (!response.ok) {
+    contas = [];
+    renderContas();
+    updateTotal();
+    showFeedback('Falha ao carregar contas do banco de dados.');
+    return;
+  }
+
+  const payload = await response.json();
+  contas = Array.isArray(payload.contas) ? payload.contas : [];
+  renderContas();
+  updateTotal();
+}
+
 contaForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
@@ -144,27 +134,20 @@ contaForm.addEventListener('submit', async (event) => {
     return;
   }
 
-  contas.push(conta);
-  saveContas();
-  renderContas();
-  updateTotal();
-  contaForm.reset();
+  const response = await fetch('/api/contas', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(conta),
+  });
 
-  if (typeof saveContaToSheets === 'function') {
-    const sheetsResult = await saveContaToSheets(conta);
-
-    if (!sheetsResult.ok && !sheetsResult.skipped) {
-      showFeedback('Conta cadastrada localmente, mas falhou ao enviar para Google Sheets.');
-      return;
-    }
-
-    if (sheetsResult.skipped) {
-      showFeedback('Conta cadastrada localmente. Configure a URL do Apps Script para salvar no Google Sheets.');
-      return;
-    }
+  if (!response.ok) {
+    showFeedback('Falha ao salvar conta no banco de dados.');
+    return;
   }
 
-  showFeedback('Conta cadastrada com sucesso.');
+  contaForm.reset();
+  await loadContas();
+  showFeedback('Conta cadastrada com sucesso no SQLite.');
 });
 
 if (logoutButton && typeof logout === 'function') {
@@ -173,18 +156,20 @@ if (logoutButton && typeof logout === 'function') {
   });
 }
 
-clearAllButton.addEventListener('click', () => {
+clearAllButton.addEventListener('click', async () => {
   if (contas.length === 0) {
     showFeedback('Não há contas para limpar.');
     return;
   }
 
-  contas.splice(0, contas.length);
-  saveContas();
-  renderContas();
-  updateTotal();
+  const response = await fetch('/api/contas', { method: 'DELETE' });
+  if (!response.ok) {
+    showFeedback('Falha ao limpar contas no banco de dados.');
+    return;
+  }
+
+  await loadContas();
   showFeedback('Todas as contas foram removidas.');
 });
 
-renderContas();
-updateTotal();
+loadContas();
