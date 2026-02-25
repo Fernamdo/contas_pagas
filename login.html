@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login - Cadastro de Contas</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="container login-container">
+      <section class="form-card login-card">
+        <h1>Login</h1>
+        <p class="subtitle">Entre para acessar o cadastro de contas.</p>
+
+        <form id="loginForm" novalidate>
+          <label for="username">Usuário</label>
+          <input id="username" type="text" required autocomplete="username" />
+
+          <label for="password">Senha</label>
+          <input id="password" type="password" required autocomplete="current-password" />
+
+          <p id="loginFeedback" class="feedback" aria-live="polite"></p>
+
+          <button type="submit">Entrar</button>
+        </form>
+      </section>
+    </main>
+
+    <script src="auth.js"></script>
+    <script>
+      if (isAuthenticated()) {
+        window.location.href = 'index.html';
+      }
+
+      const loginForm = document.getElementById('loginForm');
+      const loginFeedback = document.getElementById('loginFeedback');
+
+      loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+
+        if (!username || !password) {
+          loginFeedback.textContent = 'Preencha usuário e senha.';
+          return;
+        }
+
+        const result = await login(username, password);
+        if (!result.ok) {
+          loginFeedback.textContent = result.message;
+          return;
+        }
+
+        window.location.href = 'index.html';
+      });
+    </script>
+  </body>
+</html>
